@@ -1,0 +1,7 @@
+$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri https://aka.ms/installazurecliwindowsx64 -OutFile .\AzureCLI.msi; Start-Process msiexec.exe -Wait -ArgumentList '/I AzureCLI.msi /quiet'; Remove-Item .\AzureCLI.msi
+
+AZURE Local-Directory Download -> 
+
+az storage blob directory download -c dronev2 --account-name galaxeye -s "Thaiyur_Project" -d "Data" --recursive
+
+az storage blob directory download -c dronev2 --account-name galaxeye -s "Thaiyur_Project/DXS100/ePlane_10_04_2024/E240/cam/strip_E240_1679940007" -d "Data" --recursive
