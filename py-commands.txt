@@ -1,0 +1,16 @@
+#Create Virtual Env
+py -m venv alik-sfm
+
+#Activate virtual Env
+alik-sfm/Scripts/activate
+
+# (For Powershell)
+Set-ExecutionPolicy RemoteSigned
+
+# OpenSfm commands ->
+py viewer/server.py Data/berlin --> Need reconstruction.json
+./viewer/node_modules.sh (viewer-dependables)
+pip install -r Requirements.txt
+
+## Run the Reconstruction Pipeline
+bin/opensfm_run_all data/berlin

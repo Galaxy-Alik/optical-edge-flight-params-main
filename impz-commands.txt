@@ -1,0 +1,27 @@
+$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri https://aka.ms/installazurecliwindowsx64 -OutFile .\AzureCLI.msi; Start-Process msiexec.exe -Wait -ArgumentList '/I AzureCLI.msi /quiet'; Remove-Item .\AzureCLI.msi
+
+AZURE Local-Directory Download -> 
+
+az storage blob directory download -c dronev2 --account-name galaxeye -s "Thaiyur_Project" -d "Data" --recursive
+
+az storage blob directory download -c dronev2 --account-name galaxeye -s "Thaiyur_Project/DXS100/ePlane_10_04_2024/E240/cam/strip_E240_1679940007" -d "Data" --recursive
+
+az storage blob upload-batch --source media/datademon/GLX_DATA_HD/SAR-Stripes --destination dronev2/Thaiyur_Project/Drone-Processed-Data/SAR --account-name galaxeye --auth-mode login
+
+az storage blob upload-batch --source /home/datademon/Desktop/SAR-Stripes --destination dronev2/Thaiyur_Project/Drone-Processed-Data/SAR --account-name galaxeye --auth-mode login
+
+Opensfm ->
+
+build docker container first:
+
+docker build -i any-image-name
+
+docker run -it any-image-name
+
+python3 setup.py build
+
+bin/opensfm_run_all data/berlin (EG)
+
+exit
+
+python3 viewer/server.py -d data/berlin (EG)
