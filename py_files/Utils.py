@@ -16,7 +16,10 @@ import sys
 from pymap3d import geodetic2enu, enu2geodetic
 import warnings
 warnings.filterwarnings('ignore')
-from vo import FeatureLocalization
+from vo import FeatureLocalization, Stitcher
+
+fx, fy, cx, cy = [718.8560, 718.8560, 607.1928, 185.2157]
+camera_matrix = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
 
 def jetson_timestamp_to_utc(jetson_timestamp):
 
@@ -168,11 +171,29 @@ class EAE():
 
     return roll, pitch, yaw
 
-  def run(self, is_store = False):
+  def run(self, t_corr = [False, None], is_store = False):
     feat = FeatureLocalization(self.img1, self.img2)
     baseImage_kp, baseImage_des, secImage_kp, secImage_des = feat.feature_detection()
     matches = feat.feature_match(baseImage_des, secImage_des)
-    rot_matrix, t_vec = feat.estimatePose(matches, baseImage_kp, secImage_kp)
+    rot_matrix, t_vec = feat.estimatePose(matches, baseImage_kp, secImage_kp, t_corr)
+    
+    # is_t_corr, t_err = t_corr[0], t_corr[-1] 
+    
+    # print('Before-t: ', t_vec)
+    # print()
+
+    # temp_t = []
+    # if is_t_corr:
+    #     ''' t-vec correction '''
+    #     for step, t_ele in enumerate(t_vec):
+    #       if t_ele < 0:
+    #         t_ele += abs(t_err[1][step])
+    #       else:
+    #         t_ele -= abs(t_err[1][step])
+    #       temp_t.append(t_ele)
+    #     t_vec = np.array(temp_t.copy())
+
+    # print('After-t: ', t_vec)
 
     # print(rot_matrix)
 
@@ -199,6 +220,18 @@ class EAE():
     else:
       return euler_angle_rad, euler_angle_deg
 
+def euler_to_rotation_matrix(euler_angles):
+    # Euler angles should be provided in radians
+    rotation = R.from_euler('xyz', euler_angles)
+    return rotation.as_matrix()
+
+def compute_homography(K, R1, t1, R2, t2, plane_normal, plane_distance):
+    # Compute relative rotation and translation
+    R_rel = R2 @ R1.T
+    t_rel = t2 - R_rel @ t1
+    # Compute the homography matrix
+    H = K @ (R_rel - (t_rel[:, np.newaxis] @ plane_normal[np.newaxis, :]) / plane_distance) @ np.linalg.inv(K)
+    return H
 
 def findHomography(matches, kp1, kp2):
     
@@ -260,7 +293,59 @@ def getNewFrameSizeAndMatrix(homographymatrix, shape_img2, shape_img1):
     homographyMatrix = cv2.getPerspectiveTransform(initialPts, finalPts)  
     return [modH, modW], correction, homographyMatrix
 
-def compute_homography(img1, img2):
+
+def getNewFrameSizeAndMatrix(homographymatrix, shape_img2, shape_img1):
+
+    (h, w) = shape_img2
+
+    initialmatrix = np.array([[0, w - 1, w - 1, 0],
+                          [0, 0, h - 1, h - 1],
+                          [1, 1, 1, 1]])
+
+    finalmatrix = np.dot(homographymatrix, initialmatrix)
+    [x, y, c] = finalmatrix
+    x = np.divide(x, c)
+    y = np.divide(y, c)
+
+    min_x, max_x = int(round(min(x))), int(round(max(x)))
+    min_y, max_y = int(round(min(y))), int(round(max(y)))
+
+    modW, modH = max_x, max_y
+    correction = [0,0]
+    if min_x < 0:
+        modW -= min_x
+        correction[0] = abs(min_x)
+
+    if min_y < 0:
+        modH -= min_y
+        correction[1] = abs(min_y)
+
+    if modW < shape_img1[1] + correction[0]:
+        modW = shape_img1[1] + correction[0]
+    if modH < shape_img1[0] + correction[1]:
+        modH = shape_img1[0] + correction[1]
+
+    x = np.add(x, correction[0])
+    y = np.add(y, correction[1])
+    
+    initialPts= np.float32([[0, 0],
+                                [w - 1, 0],
+                                [w - 1, h - 1],
+                                [0, h - 1]])
+    finalPts = np.float32(np.array([x, y]).transpose())
+    homographyMatrix = cv2.getPerspectiveTransform(initialPts, finalPts)  
+    return [modH, modW], correction, homographyMatrix
+
+def manual_compute_homography_v2(prev_R, prev_t, curr_R, curr_t):
+
+    rel_R = curr_R @ prev_R.T
+    rel_t = curr_t - rel_R @ prev_t
+
+    homography_matrix = camera_matrix @ (rel_R - rel_t @ np.array([[0, 0, 1]]).T / camera_matrix[2, 2]) @ np.linalg.inv(camera_matrix)
+
+    return homography_matrix
+
+def manual_compute_homography(img1, img2):
 
     feat = FeatureLocalization(img1, img2)
     baseImage_kp, baseImage_des, secImage_kp, secImage_des = feat.feature_detection()
@@ -269,9 +354,10 @@ def compute_homography(img1, img2):
 
     return homography_matrix
 
-def stitch_frames(img1, img2, curr_R, curr_t):
+def manual_stitch_frames(img1, img2, prev_R, prev_t, curr_R, curr_t):
 
-    homographyMatrix = compute_homography(img1, img2)
+    homographyMatrix = manual_compute_homography(img1, img2)
+    # homographyMatrix = manual_compute_homography_v2(prev_R, prev_t, curr_R, curr_t)
     newFrameSize, correction, homographyMatrix = getNewFrameSizeAndMatrix(homographyMatrix, img2.shape[:2], img1.shape[:2])
     stitchedFrame = cv2.warpPerspective(img2, homographyMatrix, (newFrameSize[1], newFrameSize[0]))
     stitchedFrame[correction[1]:correction[1] + img1.shape[0], correction[0]:correction[0] + img1.shape[1]] = img1

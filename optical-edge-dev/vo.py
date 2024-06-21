@@ -32,7 +32,7 @@ class FeatureLocalization:
                 GoodMatches.append([m])
         return GoodMatches
     
-    def estimatePose(self, matches, kp1, kp2):
+    def estimatePose(self, matches, kp1, kp2, t_corr):
         baseImage_pts, secImage_pts = [], []
         for match in matches:
             baseImage_pts.append(kp1[match[0].queryIdx].pt)
@@ -41,7 +41,28 @@ class FeatureLocalization:
         pts1 = baseImage_pts
         pts2 = secImage_pts
         _, R, t, mask = cv2.recoverPose(E, np.array(baseImage_pts), np.array(secImage_pts))
-        
+
+        is_t_corr, t_err = t_corr[0], t_corr[-1]
+
+        # print('Before-t: ')
+        # print(t)
+
+        print()
+
+        temp_t = []
+        if is_t_corr:
+            ''' t-vec correction '''
+            for step, t_ele in enumerate(t):
+                if t_ele < 0:
+                    t_ele += abs(t_err[1][step])
+                else:
+                    t_ele -= abs(t_err[1][step])
+                temp_t.append(t_ele)
+            t = np.array(temp_t.copy())
+
+        # print('After-t: ')
+        # print(t)
+
         # get camera motion
         R = R.transpose()
         t = np.matmul(R, t)
