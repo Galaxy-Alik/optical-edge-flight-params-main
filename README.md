@@ -13,7 +13,7 @@ This repository contains an automated pipeline for stitching optical microscopy 
 - Configurable stitching parameters
 - Saves orientation (Euler angles) and translation (Latitude, Longitude, Altitude) parameters
 - Generates and saves the corresponding characteristic curve
-- Produces a 3D sparse point cloud with animated rotation across horizontal and vertical axes
+- Produces a 3D sparse point cloud with animated rotation across horizontal and vertical axes + sparse_pc.ply  
 
 ## Enviornment Setup
 
@@ -31,7 +31,7 @@ This repository contains an automated pipeline for stitching optical microscopy 
 3. Run for local mapping <code>docker run -it -v /home/datademon/Desktop/Alik/galax_spip_v2/data:/data image-name /bin/sh -c "bin/opensfm_run_all /data/{mission_name}-{flight_num}-{frame_number}"</code>  
 4. In the <code>data/{mission_name}-{flight_num}-{frame_number}/saves</code> directory, the final stitched image is saved
 5. In <code>saves/EA</code> Euler Angles, LLA (in .csv format) and the plots are stored
-6. In <code>saves/PC</code> V/H axis based 3D Sparse Point Cloud animations are stored     
+6. In <code>saves/PC</code> V/H axis based 3D Sparse Point Cloud animations and .ply file are stored     
 
 ## Implementation Inspiration
 
