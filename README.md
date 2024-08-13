@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains an automated pipeline for stitching optical microscopy images. The pipeline takes multiple overlapping images as input and produces a single, high-resolution composite image as output
+This repository contains an automated end-to-end optical stitching pipeline for stitching drone-captured images. The pipeline takes multiple overlapping frames (in JPG, TIFF, or PNG formats) as input and produces a single high-resolution composite image, along with flight orientation and positional parameters, as well as a 3D sparse point cloud as output.
 
 <img src='utils_images/workflow.png'></img> 
 
