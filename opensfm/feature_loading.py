@@ -54,11 +54,6 @@ class FeatureLoader:
                 smask &= mask
 
             n_removed = np.sum(smask == 0)
-            logger.debug(
-                "Masking {} / {} ({:.2f}) features for {}".format(
-                    n_removed, len(smask), n_removed / len(smask), image
-                )
-            )
 
             return smask
 

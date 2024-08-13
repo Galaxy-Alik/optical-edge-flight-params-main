@@ -14,6 +14,10 @@ logging.getLogger("exifread").setLevel(logging.WARNING)
 def run_dataset(data: DataSetBase) -> None:
     """Extract metadata from images' EXIF tag."""
 
+    logger.info(" --- Running - Extract - Metadata --- ")
+    print()
+    print('Num-Images-Supplied: ', len(data.images()))
+
     exif_overrides = {}
     if data.exif_overrides_exists():
         exif_overrides = data.load_exif_overrides()
@@ -21,10 +25,8 @@ def run_dataset(data: DataSetBase) -> None:
     camera_models = {}
     for image in data.images():
         if data.exif_exists(image):
-            logging.info("Loading existing EXIF for {}".format(image))
             d = data.load_exif(image)
         else:
-            logging.info("Extracting EXIF for {}".format(image))
             d = _extract_exif(image, data)
 
             if image in exif_overrides:

@@ -1,7 +1,6 @@
 # pyre-unsafe
 from typing import Any, Callable, List
 import argparse
-
 from opensfm import log
 
 
@@ -16,6 +15,10 @@ def command_runner(all_commands_types: List[Any], dataset_factory: Callable, dat
     )
 
     command_objects = [c.Command() for c in all_commands_types]
+
+    # print(' ---------- Command-Objects ---------- ')
+    # print(command_objects)
+    # print(' --------------------------------------- ')
 
     for command in command_objects:
         subparser = subparsers.add_parser(command.name, help=command.help)

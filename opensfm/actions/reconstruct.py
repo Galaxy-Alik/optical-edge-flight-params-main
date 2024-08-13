@@ -2,10 +2,14 @@
 from opensfm import io
 from opensfm import reconstruction
 from opensfm.dataset_base import DataSetBase
+import logging
 
+logger: logging.Logger = logging.getLogger(__name__)
 
 def run_dataset(data: DataSetBase, algorithm: reconstruction.ReconstructionAlgorithm) -> None:
     """Compute the SfM reconstruction."""
+    
+    logger.info(' --- Running - Reconstruction - Module --- ')    
 
     tracks_manager = data.load_tracks_manager()
 

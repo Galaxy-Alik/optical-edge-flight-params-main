@@ -9,6 +9,8 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 "$DIR"/opensfm match_features "$1"
 "$DIR"/opensfm create_tracks "$1"
 "$DIR"/opensfm reconstruct "$1"
-"$DIR"/opensfm mesh "$1"
-"$DIR"/opensfm undistort "$1"
-"$DIR"/opensfm compute_depthmaps "$1"
+"$DIR"/opensfm extend_reconstruction "$1"
+"$DIR"/opensfm plot_cloud "$1" 
+"$DIR"/opensfm save_euler "$1"
+"$DIR"/opensfm stitch_v2 "$1"
+

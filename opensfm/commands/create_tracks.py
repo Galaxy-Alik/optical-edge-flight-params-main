@@ -11,6 +11,9 @@ class Command(command.CommandBase):
     help = "Link matches pair-wise matches into tracks"
 
     def run_impl(self, dataset: DataSet, args: argparse.Namespace) -> None:
+        print('-------- Create -- Tracks -- (Commands) --------')
+        print('Image-Len: ', len(dataset.images()))
+        print('-----------------')
         create_tracks.run_dataset(dataset)
 
     def add_arguments_impl(self, parser: argparse.ArgumentParser) -> None:

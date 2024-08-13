@@ -17,10 +17,11 @@ from opensfm import (
     types,
     pymap,
     masking,
-    rig,
+    rig
 )
 from opensfm.dataset_base import DataSetBase
 from PIL.PngImagePlugin import PngImageFile
+import random
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -76,14 +77,24 @@ class DataSet(DataSetBase):
             with self.io_handler.open_rt(image_list_file) as fin:
                 lines = fin.read().splitlines()
             self._set_image_list(lines)
+            self._set_image_list(lines)
         else:
             self._set_image_path(image_list_path)
 
         if self.data_path and not self.image_list:
             raise IOError("No Images found in {}".format(image_list_path))
 
+    # def key_fn(item):
+    #     print(' ------------ Key_fn ------------ ')
+    #     return item.split('_')[2]
+
     def images(self) -> List[str]:
         """List of file names of all images in the dataset."""
+
+        # self.image_list = sorted(self.image_list, key=lambda k: int(k.split('_')[2]), reverse=False)
+        # print(' ****************************** ')
+        # print('Image-List (CMD-RUN): ', self.image_list)
+        # print(' ****************************** ')
         return self.image_list
 
     def _image_file(self, image: str) -> str:
@@ -417,6 +428,10 @@ class DataSet(DataSetBase):
         """Return path of reconstruction file"""
         return os.path.join(self.data_path, filename or "reconstruction.json")
 
+    def _reconstruction_file_sampled(self, filename: Optional[str]) -> str:
+        """Return path of sampled_reconstruction file"""
+        return os.path.join(self.data_path, filename or "reconstruction_sampled.json")
+
     def reconstruction_exists(self, filename: Optional[str] = None) -> bool:
         return self.io_handler.isfile(self._reconstruction_file(filename))
 
@@ -433,8 +448,38 @@ class DataSet(DataSetBase):
         filename: Optional[str] = None,
         minify=False,
     ) -> None:
+        
+        recons_points = io.reconstructions_to_json(reconstruction)[0]['points'] 
+        num_points_perc = 1.0 ## 100 perc
+        num_points = round(num_points_perc * len(list(recons_points.keys())))
+        random_keys = random.sample(list(recons_points.keys()), num_points)
+        sampled_points =  {key: recons_points[key] for key in random_keys}
+        sampled_points = [{'points' : sampled_points}]
+        
+        sample_file_path = '.'.join([self._reconstruction_file_sampled(filename).split('.')[0]]  + ['pkl'])
+        
+        print()
+        print('************** FOR SAVING RECONSTRUCTION ************')
+        print(sampled_points)
+        print()
+        print('Num-Points: ', num_points)
+        print()
+        print('sample-len: ', sample_file_path)
+        print('File-Path: ', self._reconstruction_file(filename))
+        print("********************************************")
+        print()
+
         with self.io_handler.open_wt(self._reconstruction_file(filename)) as fout:
             io.json_dump(io.reconstructions_to_json(reconstruction), fout, minify)
+
+        with self.io_handler.open_wt(self._reconstruction_file_sampled(filename)) as fout:
+            io.json_dump(sampled_points, fout, minify)
+
+        # with open(sample_file_path, 'wb') as f:
+        #     pickle.dump(sampled_points, f)
+
+        logger.info("Saved reconstruction.json and reconstruction_sampled.json successfully!")
+        
 
     def _reference_lla_path(self) -> str:
         return os.path.join(self.data_path, "reference_lla.json")
@@ -589,25 +634,6 @@ class DataSet(DataSetBase):
         with self.io_handler.open_wt(filepath) as fout:
             return fout.write(report_str)
 
-    def _ply_file(self, filename: Optional[str]) -> str:
-        return os.path.join(self.data_path, filename or "reconstruction.ply")
-
-    def save_ply(
-        self,
-        reconstruction: types.Reconstruction,
-        tracks_manager: pymap.TracksManager,
-        filename: Optional[str] = None,
-        no_cameras: bool = False,
-        no_points: bool = False,
-        point_num_views: bool = False,
-    ) -> None:
-        """Save a reconstruction in PLY format."""
-        ply = io.reconstruction_to_ply(
-            reconstruction, tracks_manager, no_cameras, no_points, point_num_views
-        )
-        with self.io_handler.open_wt(self._ply_file(filename)) as fout:
-            fout.write(ply)
-
     def _ground_control_points_file(self) -> str:
         return os.path.join(self.data_path, "ground_control_points.json")
 
@@ -640,347 +666,6 @@ class DataSet(DataSetBase):
     def image_as_array(self, image: str) -> np.ndarray:
         logger.warning("image_as_array() is deprecated. Use load_image() instead.")
         return self.load_image(image)
-
-    def mask_as_array(self, image: str) -> Optional[np.ndarray]:
-        logger.warning("mask_as_array() is deprecated. Use load_mask() instead.")
-        return self.load_mask(image)
-
-    def subset(self, name: str, images_subset: List[str]) -> "DataSet":
-        """Create a subset of this dataset by symlinking input data."""
-        subset_dataset_path = os.path.join(self.data_path, name)
-        self.io_handler.mkdir_p(subset_dataset_path)
-
-        folders = ["images", "segmentations", "masks"]
-        for folder in folders:
-            self.io_handler.mkdir_p(os.path.join(subset_dataset_path, folder))
-        subset_dataset = DataSet(subset_dataset_path, self.io_handler)
-
-        files = []
-        for method in [
-            "_camera_models_file",
-            "_config_file",
-            "_camera_models_overrides_file",
-            "_exif_overrides_file",
-        ]:
-            files.append(
-                (
-                    getattr(self, method)(),
-                    getattr(subset_dataset, method)(),
-                )
-            )
-        for image in images_subset:
-            files.append(
-                (
-                    self._image_file(image),
-                    os.path.join(subset_dataset_path, "images", image),
-                )
-            )
-            files.append(
-                (
-                    self._segmentation_file(image),
-                    os.path.join(subset_dataset_path, "segmentations", image + ".png"),
-                )
-            )
-            if image in self.mask_files:
-                files.append(
-                    (
-                        self.mask_files[image],
-                        os.path.join(subset_dataset_path, "masks", image + ".png"),
-                    )
-                )
-
-        for src, dst in files:
-            if not self.io_handler.exists(src):
-                continue
-            self.io_handler.rm_if_exist(dst)
-            self.io_handler.symlink(src, dst)
-
-        return DataSet(subset_dataset_path, self.io_handler)
-
-    def undistorted_dataset(self) -> "UndistortedDataSet":
-        return UndistortedDataSet(
-            self, os.path.join(self.data_path, "undistorted"), self.io_handler
-        )
-
-
-class UndistortedDataSet:
-    """Accessors to the undistorted data of a dataset.
-
-    Data include undistorted images, masks, and segmentation as well
-    the undistorted reconstruction, tracks graph and computed depth maps.
-
-    All data is stored inside the single folder ``undistorted_data_path``.
-    By default, this path is set to the ``undistorted`` subfolder.
-    """
-
-    base: DataSetBase
-    config: Dict[str, Any] = {}
-    data_path: str
-
-    def __init__(
-        self,
-        base_dataset: DataSetBase,
-        undistorted_data_path: str,
-        io_handler=io.IoFilesystemDefault,
-    ) -> None:
-        """Init dataset associated to a folder."""
-        self.base = base_dataset
-        self.config = self.base.config
-        self.data_path = undistorted_data_path
-        self.io_handler = io_handler
-
-    def load_undistorted_shot_ids(self) -> Dict[str, List[str]]:
-        filename = os.path.join(self.data_path, "undistorted_shot_ids.json")
-        with self.io_handler.open_rt(filename) as fin:
-            return io.json_load(fin)
-
-    def save_undistorted_shot_ids(self, ushot_dict: Dict[str, List[str]]) -> None:
-        filename = os.path.join(self.data_path, "undistorted_shot_ids.json")
-        self.io_handler.mkdir_p(self.data_path)
-        with self.io_handler.open_wt(filename) as fout:
-            io.json_dump(ushot_dict, fout, minify=False)
-
-    def _undistorted_image_path(self) -> str:
-        return os.path.join(self.data_path, "images")
-
-    def _undistorted_image_file(self, image: str) -> str:
-        """Path of undistorted version of an image."""
-        return os.path.join(self._undistorted_image_path(), image)
-
-    def load_undistorted_image(self, image: str) -> np.ndarray:
-        """Load undistorted image pixels as a numpy array."""
-        return self.io_handler.imread(self._undistorted_image_file(image))
-
-    def save_undistorted_image(self, image: str, array: np.ndarray) -> None:
-        """Save undistorted image pixels."""
-        self.io_handler.mkdir_p(self._undistorted_image_path())
-        self.io_handler.imwrite(self._undistorted_image_file(image), array)
-
-    def undistorted_image_size(self, image: str) -> Tuple[int, int]:
-        """Height and width of the undistorted image."""
-        return self.io_handler.image_size(self._undistorted_image_file(image))
-
-    def _undistorted_mask_path(self) -> str:
-        return os.path.join(self.data_path, "masks")
-
-    def _undistorted_mask_file(self, image: str) -> str:
-        """Path of undistorted version of a mask."""
-        return os.path.join(self._undistorted_mask_path(), image + ".png")
-
-    def undistorted_mask_exists(self, image: str) -> bool:
-        """Check if the undistorted mask file exists."""
-        return self.io_handler.isfile(self._undistorted_mask_file(image))
-
-    def load_undistorted_mask(self, image: str) -> np.ndarray:
-        """Load undistorted mask pixels as a numpy array."""
-        return self.io_handler.imread(
-            self._undistorted_mask_file(image), grayscale=True
-        )
-
-    def save_undistorted_mask(self, image: str, array: np.ndarray) -> None:
-        """Save the undistorted image mask."""
-        self.io_handler.mkdir_p(self._undistorted_mask_path())
-        self.io_handler.imwrite(self._undistorted_mask_file(image), array)
-
-    def _undistorted_segmentation_path(self) -> str:
-        return os.path.join(self.data_path, "segmentations")
-
-    def _undistorted_segmentation_file(self, image: str) -> str:
-        """Path of undistorted version of a segmentation."""
-        return os.path.join(self._undistorted_segmentation_path(), image + ".png")
-
-    def undistorted_segmentation_exists(self, image: str) -> bool:
-        """Check if the undistorted segmentation file exists."""
-        return self.io_handler.isfile(self._undistorted_segmentation_file(image))
-
-    def load_undistorted_segmentation(self, image: str) -> np.ndarray:
-        """Load an undistorted image segmentation."""
-        segmentation_file = self._undistorted_segmentation_file(image)
-        with self.io_handler.open(segmentation_file, "rb") as fp:
-            with PngImageFile(fp) as png_image:
-                # TODO: We do not write a header tag in the metadata. Might be good safety check.
-                data = np.array(png_image)
-                if data.ndim == 2:
-                    return data
-                elif data.ndim == 3:
-                    return data[:, :, 0]
-
-                    # TODO we can optionally return also the instances and scores:
-                    # instances = (
-                    #     data[:, :, 1].astype(np.int16) + data[:, :, 2].astype(np.int16) * 256
-                    # )
-                    # scores = data[:, :, 3].astype(np.float32) / 256.0
-                else:
-                    raise IndexError
-
-    def save_undistorted_segmentation(self, image: str, array: np.ndarray) -> None:
-        """Save the undistorted image segmentation."""
-        self.io_handler.mkdir_p(self._undistorted_segmentation_path())
-        self.io_handler.imwrite(self._undistorted_segmentation_file(image), array)
-
-    def load_undistorted_segmentation_mask(self, image: str) -> Optional[np.ndarray]:
-        """Build a mask from the undistorted segmentation.
-
-        The mask is non-zero only for pixels with segmentation
-        labels not in undistorted_segmentation_ignore_values.
-
-        If there are no undistorted_segmentation_ignore_values in the config,
-        the segmentation_ignore_values are used instead.
-        """
-        ignore_values = self.base.undistorted_segmentation_ignore_values(image)
-        if not ignore_values:
-            return None
-
-        segmentation = self.load_undistorted_segmentation(image)
-        if segmentation is None:
-            return None
-
-        return masking.mask_from_segmentation(segmentation, ignore_values)
-
-    def load_undistorted_combined_mask(self, image: str) -> Optional[np.ndarray]:
-        """Combine undistorted binary mask with segmentation mask.
-
-        Return a mask that is non-zero only where the binary
-        mask and the segmentation mask are non-zero.
-        """
-        mask = None
-        if self.undistorted_mask_exists(image):
-            mask = self.load_undistorted_mask(image)
-        smask = None
-        if self.undistorted_segmentation_exists(image):
-            smask = self.load_undistorted_segmentation_mask(image)
-        return masking.combine_masks(mask, smask)
-
-    def _depthmap_path(self) -> str:
-        return os.path.join(self.data_path, "depthmaps")
-
-    def depthmap_file(self, image: str, suffix: str) -> str:
-        """Path to the depthmap file"""
-        return os.path.join(self._depthmap_path(), image + "." + suffix)
-
-    def point_cloud_file(self, filename: str = "merged.ply") -> str:
-        return os.path.join(self._depthmap_path(), filename)
-
-    def load_point_cloud(
-        self, filename: str = "merged.ply"
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        with self.io_handler.open(self.point_cloud_file(filename), "r") as fp:
-            return io.point_cloud_from_ply(fp)
-
-    def save_point_cloud(
-        self,
-        points: np.ndarray,
-        normals: np.ndarray,
-        colors: np.ndarray,
-        labels: np.ndarray,
-        filename: str = "merged.ply",
-    ) -> None:
-        self.io_handler.mkdir_p(self._depthmap_path())
-        with self.io_handler.open(self.point_cloud_file(filename), "w") as fp:
-            io.point_cloud_to_ply(points, normals, colors, labels, fp)
-
-    def raw_depthmap_exists(self, image: str) -> bool:
-        return self.io_handler.isfile(self.depthmap_file(image, "raw.npz"))
-
-    def save_raw_depthmap(
-        self,
-        image: str,
-        depth: np.ndarray,
-        plane: np.ndarray,
-        score: np.ndarray,
-        nghbr: np.ndarray,
-        nghbrs: np.ndarray,
-    ) -> None:
-        self.io_handler.mkdir_p(self._depthmap_path())
-        filepath = self.depthmap_file(image, "raw.npz")
-        with self.io_handler.open(filepath, "wb") as f:
-            np.savez_compressed(
-                f, depth=depth, plane=plane, score=score, nghbr=nghbr, nghbrs=nghbrs
-            )
-
-    def load_raw_depthmap(
-        self, image: str
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        with self.io_handler.open(self.depthmap_file(image, "raw.npz"), "rb") as f:
-            o = np.load(f)
-            return o["depth"], o["plane"], o["score"], o["nghbr"], o["nghbrs"]
-
-    def clean_depthmap_exists(self, image: str) -> bool:
-        return self.io_handler.isfile(self.depthmap_file(image, "clean.npz"))
-
-    def save_clean_depthmap(
-        self, image: str, depth: np.ndarray, plane: np.ndarray, score: np.ndarray
-    ) -> None:
-        self.io_handler.mkdir_p(self._depthmap_path())
-        filepath = self.depthmap_file(image, "clean.npz")
-        with self.io_handler.open(filepath, "wb") as f:
-            np.savez_compressed(f, depth=depth, plane=plane, score=score)
-
-    def load_clean_depthmap(
-        self, image: str
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        with self.io_handler.open(self.depthmap_file(image, "clean.npz"), "rb") as f:
-            o = np.load(f)
-            return o["depth"], o["plane"], o["score"]
-
-    def pruned_depthmap_exists(self, image: str) -> bool:
-        return self.io_handler.isfile(self.depthmap_file(image, "pruned.npz"))
-
-    def save_pruned_depthmap(
-        self,
-        image: str,
-        points: np.ndarray,
-        normals: np.ndarray,
-        colors: np.ndarray,
-        labels: np.ndarray,
-    ) -> None:
-        self.io_handler.mkdir_p(self._depthmap_path())
-        filepath = self.depthmap_file(image, "pruned.npz")
-        with self.io_handler.open(filepath, "wb") as f:
-            np.savez_compressed(
-                f,
-                points=points,
-                normals=normals,
-                colors=colors,
-                labels=labels,
-            )
-
-    def load_pruned_depthmap(
-        self, image: str
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        with self.io_handler.open(self.depthmap_file(image, "pruned.npz"), "rb") as f:
-            o = np.load(f)
-            return (
-                o["points"],
-                o["normals"],
-                o["colors"],
-                o["labels"],
-            )
-
-    def load_undistorted_tracks_manager(self) -> pymap.TracksManager:
-        filename = os.path.join(self.data_path, "tracks.csv")
-        with self.io_handler.open(filename, "r") as f:
-            return pymap.TracksManager.instanciate_from_string(f.read())
-
-    def save_undistorted_tracks_manager(
-        self, tracks_manager: pymap.TracksManager
-    ) -> None:
-        filename = os.path.join(self.data_path, "tracks.csv")
-        with self.io_handler.open(filename, "w") as fw:
-            fw.write(tracks_manager.as_string())
-
-    def load_undistorted_reconstruction(self) -> List[types.Reconstruction]:
-        filename = os.path.join(self.data_path, "reconstruction.json")
-        with self.io_handler.open_rt(filename) as fin:
-            return io.reconstructions_from_json(io.json_load(fin))
-
-    def save_undistorted_reconstruction(
-        self, reconstruction: List[types.Reconstruction]
-    ) -> None:
-        filename = os.path.join(self.data_path, "reconstruction.json")
-        self.io_handler.mkdir_p(self.data_path)
-        with self.io_handler.open_wt(filename) as fout:
-            io.json_dump(io.reconstructions_to_json(reconstruction), fout, minify=True)
 
 
 def invent_reference_from_gps_and_gcp(
@@ -1017,3 +702,15 @@ def invent_reference_from_gps_and_gcp(
         lon /= wlon
 
     return geo.TopocentricConverter(lat, lon, 0)
+
+def save_point_cloud(
+        self,
+        points: np.ndarray,
+        normals: np.ndarray,
+        colors: np.ndarray,
+        labels: np.ndarray,
+        filename: str = "sparse_pc.ply",
+    ) -> None:
+        self.io_handler.mkdir_p(self._depthmap_path())
+        with self.io_handler.open(self.point_cloud_file(filename), "w") as fp:
+            io.point_cloud_to_ply(points, normals, colors, labels, fp)

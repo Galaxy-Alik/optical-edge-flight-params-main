@@ -20,7 +20,7 @@ class OpenSfMConfig:
     # Params for features
     ##################################
     # Feature type (AKAZE, SURF, SIFT, HAHOG, ORB)
-    feature_type: str = "HAHOG"
+    feature_type: str = "SIFT"
     # If true, apply square root mapping to features
     feature_root: bool = True
     # If fewer frames are detected, sift_peak_threshold/surf_hessian_threshold is reduced.
@@ -44,79 +44,14 @@ class OpenSfMConfig:
     sift_edge_threshold: int = 10
 
     ##################################
-    # Params for SURF
-    ##################################
-    # Smaller value -> more features
-    surf_hessian_threshold: float = 3000
-    # See OpenCV doc
-    surf_n_octaves: int = 4
-    # See OpenCV doc
-    surf_n_octavelayers: int = 2
-    # See OpenCV doc
-    surf_upright: int = 0
-
-    ##################################
-    # Params for AKAZE (See details in lib/src/third_party/akaze/AKAZEConfig.h)
-    ##################################
-    # Maximum octave evolution of the image 2^sigma (coarsest scale sigma units)
-    akaze_omax: int = 4
-    # Detector response threshold to accept point
-    akaze_dthreshold: float = 0.001
-    # Feature type
-    akaze_descriptor: str = "MSURF"
-    # Size of the descriptor in bits. 0->Full size
-    akaze_descriptor_size: int = 0
-    # Number of feature channels (1,2,3)
-    akaze_descriptor_channels: int = 3
-    akaze_kcontrast_percentile: float = 0.7
-    akaze_use_isotropic_diffusion: bool = False
-
-    ##################################
-    # Params for HAHOG
-    ##################################
-    hahog_peak_threshold: float = 0.00001
-    hahog_edge_threshold: float = 10
-    hahog_normalize_to_uchar: bool = True
-
-    ##################################
     # Params for general matching
     ##################################
     # Ratio test for matches
     lowes_ratio: float = 0.8
     # FLANN, BRUTEFORCE, or WORDS
-    matcher_type: str = "FLANN"
+    matcher_type: str = "BRUTEFORCE"
     # Match symmetrically or one-way
     symmetric_matching: bool = True
-
-    ##################################
-    # Params for FLANN matching
-    ##################################
-    # Algorithm type (KMEANS, KDTREE)
-    flann_algorithm: str = "KMEANS"
-    # See OpenCV doc
-    flann_branching: int = 8
-    # See OpenCV doc
-    flann_iterations: int = 10
-    # See OpenCV doc
-    flann_tree: int = 8
-    # Smaller -> Faster (but might lose good matches)
-    flann_checks: int = 20
-
-    ##################################
-    # Params for BoW matching
-    ##################################
-    bow_file: str = "bow_hahog_root_uchar_10000.npz"
-    # Number of words to explore per feature.
-    bow_words_to_match: int = 50
-    # Number of matching features to check.
-    bow_num_checks: int = 20
-    # Matcher type to assign words to features
-    bow_matcher_type: str = "FLANN"
-
-    ##################################
-    # Params for VLAD matching
-    ##################################
-    vlad_file: str = "bow_hahog_root_uchar_64.npz"
 
     ##################################
     # Params for guided matching

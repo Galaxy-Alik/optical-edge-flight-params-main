@@ -11,6 +11,9 @@ class Command(command.CommandBase):
     help = "Compute features for all images"
 
     def run_impl(self, dataset: DataSet, args: argparse.Namespace) -> None:
+        print('-------- Detect - Features -- (Commands) --------')
+        print('Image-Len: ', len(dataset.images()))
+        print('-----------------')
         detect_features.run_dataset(dataset)
 
     def add_arguments_impl(self, parser: argparse.ArgumentParser) -> None:

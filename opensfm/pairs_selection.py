@@ -8,7 +8,8 @@ from typing import Optional, Tuple, List, Set, Dict, Iterable, Any
 
 import numpy as np
 import scipy.spatial as spatial
-from opensfm import bow, context, feature_loader, vlad, geo, geometry
+# from opensfm import bow, context, feature_loader, vlad, geo, geometry
+from opensfm import context, geo, geometry, feature_loader
 from opensfm.dataset_base import DataSetBase
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -96,9 +97,6 @@ def find_best_altitude(
     coeffs = np.polyfit(samples_x, samples_y, 2)
     extrema = -coeffs[1] / (2 * coeffs[0])
     if extrema < 0:
-        logger.info(
-            f"Altitude is negative ({extrema}) : viewing directions are probably divergent. Using default altitude of {DEFAULT_Z}"
-        )
         extrema = DEFAULT_Z
     return extrema
 
@@ -140,7 +138,7 @@ def get_representative_points(
 
     if had_orientation:
         altitude = find_best_altitude(origin, directions)
-        logger.info(f"Altitude for orientation based matching {altitude}")
+        # logger.info(f"Altitude for orientation based matching {altitude}")
         directions_scaled = {k: v / DEFAULT_Z * altitude for k, v in directions.items()}
         points = {k: origin[k] + directions_scaled[k] for k in images}
     else:
@@ -180,7 +178,6 @@ def match_candidates_by_distance(
     # either ALL of them or NONE of them are used for getting pairs
     difference = abs(len(representative_points) - len(set(images_cand + images_ref)))
     if difference > 0:
-        logger.warning(f"Couldn't fetch {difference} images. Returning NO pairs.")
         return set()
 
     points = np.zeros((len(representative_points), 3))
@@ -330,14 +327,12 @@ def compute_bow_affinity(
     )
 
     # construct BoW histograms
-    logger.info("Computing %d BoW histograms" % len(need_load))
     histograms = load_histograms(data, need_load)
 
     # parallel VLAD neighbors computation
     args, processes, batch_size = create_parallel_matching_args(
         data, preempted_candidates, histograms
     )
-    logger.info("Computing BoW candidates with %d processes" % processes)
     return context.parallel_map(match_bow_unwrap_args, args, processes, batch_size)
 
 
@@ -411,14 +406,12 @@ def compute_vlad_affinity(
 
     # construct VLAD histograms
     need_load = {im for im in need_load if im not in histograms}
-    logger.info("Computing %d VLAD histograms" % len(need_load))
     histograms.update(vlad_histograms(need_load, data))
 
     # parallel VLAD neighbors computation
     args, processes, batch_size = create_parallel_matching_args(
         data, preempted_candidates, histograms
     )
-    logger.info("Computing VLAD candidates with %d processes" % processes)
     return context.parallel_map(match_vlad_unwrap_args, args, processes, batch_size)
 
 

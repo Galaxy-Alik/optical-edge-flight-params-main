@@ -70,7 +70,6 @@ def load_features_mask(
     if mask_image is None:
         mask_image = _load_combined_mask(data, image)
     if mask_image is None:
-        logger.debug("No segmentation for {}, no features masked.".format(image))
         return np.ones((points.shape[0],), dtype=bool)
 
     exif = data.load_exif(image)
@@ -88,13 +87,6 @@ def load_features_mask(
         new_height=new_height,
     ).astype(int)
     mask = mask_image[ps[:, 1], ps[:, 0]]
-
-    n_removed = np.sum(mask == 0)
-    logger.debug(
-        "Masking {} / {} ({:.2f}) features for {}".format(
-            n_removed, len(mask), n_removed / len(mask), image
-        )
-    )
 
     return np.array(mask, dtype=bool)
 

@@ -14,6 +14,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 def run_dataset(data: DataSet) -> None:
     """ Split the dataset into smaller submodels. """
 
+    logger.info(' ---- Splitting Dataset ---- ')
+
     meta_data = MetaDataSet(data.data_path)
 
     meta_data.remove_submodels()

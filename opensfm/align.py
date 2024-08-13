@@ -124,13 +124,11 @@ def alignment_constraints(
     """Gather alignment constraints to be used by checking bundle_use_gcp and bundle_use_gps."""
 
     X, Xp = [], []
-    logger.info(f"Collecting alignment constraints - bundle_use_gps:{config['bundle_use_gps']} bundle_use_gcp: {config['bundle_use_gcp']}")
     # Get Ground Control Point correspondences
     if gcp and config["bundle_use_gcp"]:
         triangulated, measured = triangulate_all_gcp(reconstruction, gcp)
         X.extend(triangulated)
         Xp.extend(measured)
-    logger.info(f"GCP constraints X ({len(X)}) - Xp ({len(Xp)})")
     # Get camera center correspondences
     if use_gps and config["bundle_use_gps"]:
         for rig_instance in reconstruction.rig_instances.values():
@@ -142,7 +140,7 @@ def alignment_constraints(
             if len(gpses) > 0:
                 X.append(rig_instance.pose.get_origin())
                 Xp.append(np.average(gpses, axis=0))
-    logger.info(f"GPS constraints X ({len(X)}) - Xp ({len(Xp)})")
+    # logger.info(f"GPS constraints X ({len(X)}) - Xp ({len(Xp)})")
     return X, Xp
 
 
@@ -324,9 +322,7 @@ def set_gps_bias(
     # Align the reconstruction on GCPs ONLY
     s, A, b = gps_bias
     A_angle_axis = cv2.Rodrigues(A)[0].flatten()
-    logger.info(
-        f"Applying global bias with scale {s:.5f} / translation {b} / rotation {A_angle_axis}"
-    )
+    
     apply_similarity(reconstruction, s, A, b)
 
     # Compute per camera similarity between the GCP and the shots positions
@@ -353,9 +349,9 @@ def set_gps_bias(
             s, A, b = transform
             A_angle_axis = cv2.Rodrigues(A)[0].flatten()
             s, A_angle_axis, b = 1.0 / s, -A_angle_axis, -A.T.dot(b) / s
-            logger.info(
-                f"Camera {camera_id} bias : scale {s:.5f} / translation {b} / rotation {A_angle_axis}"
-            )
+            # logger.info(
+            #     f"Camera {camera_id} bias : scale {s:.5f} / translation {b} / rotation {A_angle_axis}"
+            # )
             camera_bias = pygeometry.Similarity(A_angle_axis, b, s)
             reconstruction.set_bias(camera_id, camera_bias)
 
@@ -431,7 +427,7 @@ def get_horizontal_and_vertical_directions(
         return -R[1, :], -R[0, :], -R[2, :]
     if orientation == 8:
         return R[1, :], -R[0, :], R[2, :]
-    logger.error("unknown orientation {0}. Using 1 instead".format(orientation))
+    # logger.error("unknown orientation {0}. Using 1 instead".format(orientation))
     return R[0, :], R[1, :], R[2, :]
 
 

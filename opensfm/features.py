@@ -38,9 +38,6 @@ class SemanticData:
             if instances is not None:
                 instances = instances[mask]
         except IndexError:
-            logger.error(
-                f"Invalid mask array of dtype {mask.dtype}, shape {mask.shape}: {mask}"
-            )
             raise
 
         return SemanticData(segmentation, instances, self.labels)
@@ -213,7 +210,6 @@ class FeaturesData:
             has_segmentation = (data["segmentations"] != None).all()
             has_instances = (data["instances"] != None).all()
         except ValueError:
-            logger.warning(pickle_message.format("segmentations and instances"))
             has_segmentation, has_instances = False, False
 
         # ... whereas 'labels' can't be loaded anymore, as it is a plain 'list' object. Not an
@@ -221,7 +217,6 @@ class FeaturesData:
         try:
             labels = data["segmentation_labels"]
         except ValueError:
-            logger.warning(pickle_message.format("labels"))
             labels = []
 
         if has_segmentation or has_instances:
@@ -379,7 +374,7 @@ def extract_features_sift(
         descriptor = cv2.DescriptorExtractor_create("SIFT")
         detector.setDouble("edgeThreshold", sift_edge_threshold)
     while True:
-        logger.debug("Computing sift with threshold {0}".format(sift_peak_threshold))
+        logger.info("Computing sift ... ")
         t = time.time()
         # SIFT support is in cv2 main from version 4.4.0
         if context.OPENCV44 or context.OPENCV5:
@@ -393,10 +388,8 @@ def extract_features_sift(
         else:
             detector.setDouble("contrastThreshold", sift_peak_threshold)
         points = detector.detect(image)
-        logger.debug("Found {0} points in {1}s".format(len(points), time.time() - t))
         if len(points) < features_count and sift_peak_threshold > 0.0001:
             sift_peak_threshold = (sift_peak_threshold * 2) / 3
-            logger.debug("reducing threshold")
         else:
             logger.debug("done")
             break
@@ -420,10 +413,6 @@ def extract_features_surf(
         try:
             detector = cv2.xfeatures2d.SURF_create()
         except AttributeError as ae:
-            if "no attribute 'xfeatures2d'" in str(ae):
-                logger.error(
-                    "OpenCV Contrib modules are required to extract SURF features"
-                )
             raise
         descriptor = detector
         detector.setHessianThreshold(surf_hessian_threshold)
@@ -439,7 +428,7 @@ def extract_features_surf(
         detector.setInt("upright", config["surf_upright"])
 
     while True:
-        logger.debug("Computing surf with threshold {0}".format(surf_hessian_threshold))
+        logger.info("Computing surf ...")
         t = time.time()
         if context.OPENCV3:
             detector.setHessianThreshold(surf_hessian_threshold)
@@ -448,10 +437,8 @@ def extract_features_surf(
                 "hessianThreshold", surf_hessian_threshold
             )  # default: 0.04
         points = detector.detect(image)
-        logger.debug("Found {0} points in {1}s".format(len(points), time.time() - t))
         if len(points) < features_count and surf_hessian_threshold > 0.0001:
             surf_hessian_threshold = (surf_hessian_threshold * 2) / 3
-            logger.debug("reducing threshold")
         else:
             logger.debug("done")
             break
@@ -473,7 +460,6 @@ def akaze_descriptor_type(name: str) -> pyfeatures.AkazeDescriptorType:
     if name in d:
         return d[name]
     else:
-        logger.debug("Wrong akaze descriptor type")
         return d["MSURF"]
 
 
@@ -492,10 +478,9 @@ def extract_features_akaze(
     options.target_num_features = features_count
     options.use_adaptive_suppression = config["feature_use_adaptive_suppression"]
 
-    logger.debug("Computing AKAZE with threshold {0}".format(options.dthreshold))
+    logger.debug("Computing AKAZE ... ")
     t = time.time()
     points, desc = pyfeatures.akaze(image, options)
-    logger.debug("Found {0} points in {1}s".format(len(points), time.time() - t))
 
     if config["feature_root"]:
         if akaze_descriptor_name in ["SURF_UPRIGHT", "MSURF_UPRIGHT"]:
@@ -526,7 +511,7 @@ def extract_features_hahog(
     if config["hahog_normalize_to_uchar"]:
         desc = (uchar_scaling * desc).clip(0, 255).round()
 
-    logger.debug("Found {0} points in {1}s".format(len(points), time.time() - t))
+    # logger.debug("Found {0} points in {1}s".format(len(points), time.time() - t))
     return points, desc
 
 
@@ -541,7 +526,7 @@ def extract_features_orb(
         descriptor = cv2.DescriptorExtractor_create("ORB")
         detector.setDouble("nFeatures", features_count)
 
-    logger.debug("Computing ORB")
+    logger.debug("Computing ORB ... ")
     t = time.time()
     points = detector.detect(image)
 
@@ -552,7 +537,6 @@ def extract_features_orb(
         points = np.array(np.zeros((0, 3)))
         desc = np.array(np.zeros((0, 3)))
 
-    logger.debug("Found {0} points in {1}s".format(len(points), time.time() - t))
     return points, desc
 
 

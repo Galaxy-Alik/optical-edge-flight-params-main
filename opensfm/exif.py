@@ -44,11 +44,6 @@ def get_tag_as_float(tags, key, index: int = 0) -> Optional[float]:
         val = tags[key].values[index]
         if isinstance(val, exifread.utils.Ratio):
             ret_val = eval_frac(val)
-            if ret_val is None:
-                logger.error(
-                    'The rational "{2}" of tag "{0:s}" at index {1:d} c'
-                    "aused a division by zero error".format(key, index, val)
-                )
             return ret_val
         else:
             return float(val)
@@ -277,9 +272,6 @@ class EXIF:
         elif resolution_unit == 5:  # um
             return um_in_mm
         else:
-            logger.warning(
-                "Unknown EXIF resolution unit value: {}".format(resolution_unit)
-            )
             return None
 
     def extract_orientation(self) -> int:
@@ -424,12 +416,6 @@ class EXIF:
                     s = "{0:s}.{1:s}".format(date_time, subsec_time)
                     d = datetime.datetime.strptime(s, "%Y:%m:%d %H:%M:%S.%f")
                 except ValueError:
-                    logger.debug(
-                        'The "{1:s}" time stamp or "{2:s}" tag is invalid in '
-                        'image file "{0:s}"'.format(
-                            self.fileobj_name, datetime_tag, subsec_tag
-                        )
-                    )
                     continue
                 # Test for OffsetTimeOriginal | OffsetTimeDigitized | OffsetTime
                 if offset_tag in self.tags:
@@ -450,12 +436,9 @@ class EXIF:
                 else:
                     logger.debug(
                         "No GPS time stamp and no time zone offset in image "
-                        'file "{0:s}"'.format(self.fileobj_name)
                     )
                     logger.debug(
-                        'Naively assuming UTC on "{0:s}" in image file "{1:s}"'.format(
-                            datetime_tag, self.fileobj_name
-                        )
+                        'Naively assuming UTC in image file'
                     )
                 return (d - datetime.datetime(1970, 1, 1)).total_seconds()
         logger.info(

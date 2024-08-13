@@ -11,7 +11,7 @@ class Command(command.CommandBase):
     help = "Match features between image pairs"
 
     def run_impl(self, dataset: DataSet, args: argparse.Namespace) -> None:
-        match_features.run_dataset(dataset)
+        match_features.run_dataset(dataset, args.dataset)
 
     def add_arguments_impl(self, parser: argparse.ArgumentParser) -> None:
         pass

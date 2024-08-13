@@ -25,7 +25,7 @@ The report on feature detection is stored in the file ``features.json``.  Its st
 Matching
 --------
 
-The report on matching is stored in the file ``matches.json``.  Its structure is as follow::
+The report on matching is stored in the file ``.json``.  Its structure is as follow::
 
     {
         "wall_time": {{ total time compting matches }},

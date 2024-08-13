@@ -10,6 +10,7 @@ from collections import defaultdict
 from itertools import combinations
 from timeit import default_timer as timer
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from pprint import pprint
 
 import cv2
 import numpy as np
@@ -22,14 +23,14 @@ from opensfm import (
     pymap,
     pysfm,
     reconstruction_helpers as helpers,
-    rig,
     tracking,
     types,
+    rig
 )
 from opensfm.align import align_reconstruction, apply_similarity
 from opensfm.context import current_memory_usage, parallel_map
 from opensfm.dataset_base import DataSetBase
-
+from collections import OrderedDict
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -57,8 +58,7 @@ def log_bundle_stats(bundle_type: str, bundle_report: Dict[str, Any]) -> None:
     if num_points > 0 :
         msg += f"with {num_images}/{num_points}/{num_reprojections} ({num_reprojections/num_points:.2f}) "
         msg += "shots/points/proj. (avg. length)"
-
-    logger.info(msg)
+        
 
 def bundle(
     reconstruction: types.Reconstruction,
@@ -76,7 +76,7 @@ def bundle(
         config,
     )
     log_bundle_stats("GLOBAL", report)
-    logger.debug(report["brief_report"])
+    # logger.debug(report["brief_report"])
     return report
 
 
@@ -116,7 +116,6 @@ def bundle_local(
         config,
     )
     log_bundle_stats("LOCAL", report)
-    logger.debug(report["brief_report"])
     return pt_ids, report
 
 
@@ -208,10 +207,29 @@ def compute_image_pairs(
     processes = data.config["processes"]
     result = parallel_map(_compute_pair_reconstructability, args, processes)
     result = list(result)
-    pairs = [(im1, im2) for im1, im2, r in result if r > 0]
-    score = [r for im1, im2, r in result if r > 0]
+    
+    print()
+    print('*******Image-Pair********')
+    # print(result)
+    print("*************************")
+    print()
+    
+    # pairs = [(im1, im2) for im1, im2, r in result if r > 0]
+    pairs = [(im1, im2) for im1, im2, _ in result]
+    # score = [r for _, _, r in result if r > 0]
+    score = [r for _, _, r in result]
     order = np.argsort(-np.array(score))
-    return [pairs[o] for o in order]
+
+    od_pairs = [pairs[o] for o in order]
+
+    # print()
+    # print('*******Image-Pairs (OD) ********')
+    # print(od_pairs)
+    # print("*************************")
+    # print()
+    
+
+    return od_pairs
 
 
 def _pair_reconstructability_arguments(
@@ -258,6 +276,7 @@ def add_shot(
         shot = reconstruction.create_shot(shot_id, camera_id, pose)
         shot.metadata = helpers.get_image_metadata(data, shot_id)
         added_shots = {shot_id}
+
     else:
         instance_id, _, instance_shots = rig_assignments[shot_id]
         rig_instance = reconstruction.add_rig_instance(pymap.RigInstance(instance_id))
@@ -446,9 +465,6 @@ def two_view_reconstruction_5pt(
         if len(inliers_5p) <= 5 or not valid_curr_5pt:
             continue
 
-        logger.info(
-            f"Two-view 5-points reconstruction inliers (transposed={transposed}): {len(inliers_5p)} / {len(b1)}"
-        )
         results_5pt.append((R_5p, t_5p, inliers_5p))
 
     # Use relative motion if one version stands out
@@ -540,11 +556,14 @@ def two_view_reconstruction_general(
         R, t, inliers = R_plane, t_plane, inliers_plane
     else:
         report["decision"] = "Could not find initial motion"
-        logger.info(report["decision"])
+        # logger.info(report["decision"])
         R, t, inliers = None, None, []
     return R, t, inliers, report
 
 
+###############################################################
+############## Relative-Pose Reconstruction ###################
+###############################################################
 def reconstruction_from_relative_pose(
     data: DataSetBase,
     tracks_manager: pymap.TracksManager,
@@ -568,25 +587,27 @@ def reconstruction_from_relative_pose(
     reconstruction.rig_cameras = rig_camera_priors
 
     new_shots = add_shot(data, reconstruction, rig_assignments, im1, pygeometry.Pose())
+    # new_shots = add_shot(data, reconstruction, im1, pygeometry.Pose())
 
     if im2 not in new_shots:
         new_shots |= add_shot(
             data, reconstruction, rig_assignments, im2, pygeometry.Pose(R, t)
+            # data, reconstruction, im2, pygeometry.Pose(R, t)
         )
 
     align_reconstruction(reconstruction, [], data.config)
     triangulate_shot_features(tracks_manager, reconstruction, new_shots, data.config)
 
-    logger.info("Triangulated: {}".format(len(reconstruction.points)))
     report["triangulated_points"] = len(reconstruction.points)
     if len(reconstruction.points) < min_inliers:
         report["decision"] = "Initial motion did not generate enough points"
-        logger.info(report["decision"])
+        # logger.info(report["decision"])
         return None, report
 
     to_adjust = {s for s in new_shots if s != im1}
     bundle_shot_poses(
         reconstruction, to_adjust, camera_priors, rig_camera_priors, data.config
+        # reconstruction, to_adjust, camera_priors, data.config
     )
 
     retriangulate(tracks_manager, reconstruction, data.config)
@@ -594,11 +615,12 @@ def reconstruction_from_relative_pose(
         report[
             "decision"
         ] = "Re-triangulation after initial motion did not generate enough points"
-        logger.info(report["decision"])
+        # logger.info(report["decision"])
         return None, report
 
     bundle_shot_poses(
         reconstruction, to_adjust, camera_priors, rig_camera_priors, data.config
+        # reconstruction, to_adjust, camera_priors, data.config
     )
 
     report["decision"] = "Success"
@@ -615,7 +637,7 @@ def bootstrap_reconstruction(
     p2: np.ndarray,
 ) -> Tuple[Optional[types.Reconstruction], Dict[str, Any]]:
     """Start a reconstruction using two shots."""
-    logger.info("Starting reconstruction with {} and {}".format(im1, im2))
+    # logger.info("Starting reconstruction with {} and {}".format(im1, im2))
     report: Dict[str, Any] = {
         "image_pair": (im1, im2),
         "common_tracks": len(p1),
@@ -668,6 +690,9 @@ def reconstructed_points_for_images(
     return sorted(res.items(), key=lambda x: -x[1])
 
 
+###################################
+##### Add-Reconstruction-Shots#####
+###################################
 def resect(
     data: DataSetBase,
     tracks_manager: pymap.TracksManager,
@@ -708,7 +733,6 @@ def resect(
     inliers = np.linalg.norm(reprojected_bs - bs, axis=1) < threshold
     ninliers = int(sum(inliers))
 
-    logger.info("{} resection inliers: {} / {}".format(shot_id, ninliers, len(bs)))
     report: Dict[str, Any] = {
         "num_common_points": len(bs),
         "num_inliers": ninliers,
@@ -731,6 +755,9 @@ def resect(
                 add_observation_to_reconstruction(
                     tracks_manager, reconstruction, shot_id, ids[i]
                 )
+        # logger.info("*********************")
+        # logger.info(f"Shots: {new_shots}")
+        # logger.info("*********************")
         report["shots"] = list(new_shots)
         return True, new_shots, report
     else:
@@ -1217,7 +1244,6 @@ def remove_outliers(
             if lm.number_of_observations() < 2:
                 reconstruction.map.remove_landmark(lm)
 
-    logger.info("Removed outliers: {}".format(len(outliers)))
     return len(outliers)
 
 
@@ -1314,7 +1340,7 @@ def merge_reconstructions(
     for k in remaining_reconstruction:
         reconstructions_merged.append(reconstructions[k])
 
-    logger.info("Merged {0} reconstructions".format(num_merge))
+    # logger.info("Merged {0} reconstructions".format(num_merge))
 
     return reconstructions_merged
 
@@ -1390,7 +1416,7 @@ def grow_reconstruction(
     images: Set[str],
     gcp: List[pymap.GroundControlPoint],
 ) -> Tuple[types.Reconstruction, Dict[str, Any]]:
-    """Incrementally add shots to an initial reconstruction."""
+    """Incrementally add shots to an initial reconstruction | adds reconstruction on existing .json, for new images in /images"""
     config = data.config
     report = {"steps": []}
 
@@ -1407,7 +1433,7 @@ def grow_reconstruction(
     should_bundle = ShouldBundle(data, reconstruction)
     should_retriangulate = ShouldRetriangulate(data, reconstruction)
     while True:
-        if config["save_partial_reconstructions"]:
+        if config["save_partial_reconstructions"]: ## False
             paint_reconstruction(data, tracks_manager, reconstruction)
             data.save_reconstruction(
                 [reconstruction],
@@ -1436,8 +1462,9 @@ def grow_reconstruction(
             )
             if not ok:
                 continue
-
-            images -= new_shots
+            
+            _shots = set(new_shots)
+            images = [img for img in images if img not in _shots] 
             bundle_shot_poses(
                 reconstruction,
                 new_shots,
@@ -1446,7 +1473,6 @@ def grow_reconstruction(
                 data.config,
             )
 
-            logger.info(f"Adding {' and '.join(new_shots)} to the reconstruction")
             step: Dict[str, Union[List[int], List[str], int, List[int], Any]] = {
                 "images": list(new_shots),
                 "resection": resrep,
@@ -1460,7 +1486,7 @@ def grow_reconstruction(
             step["triangulated_points"] = np_after - np_before
 
             if should_retriangulate.should():
-                logger.info("Re-triangulating")
+                logger.info("Re-triangulating ... ")
                 align_reconstruction(reconstruction, gcp, config)
                 b1rep = bundle(
                     reconstruction, camera_priors, rig_camera_priors, None, config
@@ -1495,11 +1521,8 @@ def grow_reconstruction(
                 remove_outliers(reconstruction, config, bundled_points)
                 step["local_bundle"] = brep
 
-            logger.info(f"Reconstruction now has {len(reconstruction.shots)} shots.")
-
             break
         else:
-            logger.info("Some images can not be added")
             break
 
     logger.info("-------------------------------------------------------")
@@ -1515,91 +1538,53 @@ def grow_reconstruction(
     paint_reconstruction(data, tracks_manager, reconstruction)
     return reconstruction, report
 
-
-def triangulation_reconstruction(
-    data: DataSetBase, tracks_manager: pymap.TracksManager
-) -> Tuple[Dict[str, Any], List[types.Reconstruction]]:
-    """Run the triangulation reconstruction pipeline."""
-    logger.info("Starting triangulation reconstruction")
-    report = {}
-    chrono = Chronometer()
-
-    images = tracks_manager.get_shot_ids()
-    data.init_reference(images)
-
-    camera_priors = data.load_camera_models()
-    rig_camera_priors = data.load_rig_cameras()
-    gcp = data.load_ground_control_points()
-
-    reconstruction = helpers.reconstruction_from_metadata(data, images)
-
-    config = data.config
-    config_override = config.copy()
-    config_override["triangulation_type"] = "ROBUST"
-    config_override["bundle_max_iterations"] = 10
-
-    report["steps"] = []
-    outer_iterations = 3
-    inner_iterations = 5
-    for i in range(outer_iterations):
-        rrep = retriangulate(tracks_manager, reconstruction, config_override)
-        triangulated_points = rrep["num_points_after"]
-        logger.info(
-            f"Triangulation SfM. Outer iteration {i}, triangulated {triangulated_points} points."
-        )
-
-        for j in range(inner_iterations):
-            if config_override["save_partial_reconstructions"]:
-                paint_reconstruction(data, tracks_manager, reconstruction)
-                data.save_reconstruction(
-                    [reconstruction], f"reconstruction.{i*inner_iterations+j}.json"
-                )
-
-            step = {}
-            logger.info(f"Triangulation SfM. Inner iteration {j}, running bundle ...")
-            align_reconstruction(reconstruction, gcp, config_override)
-            b1rep = bundle(
-                reconstruction, camera_priors, rig_camera_priors, None, config_override
-            )
-            remove_outliers(reconstruction, config_override)
-            step["bundle"] = b1rep
-            step["retriangulation"] = rrep
-            report["steps"].append(step)
-
-    logger.info("Triangulation SfM done.")
-    logger.info("-------------------------------------------------------")
-    chrono.lap("compute_reconstructions")
-    report["wall_times"] = dict(chrono.lap_times())
-
-    align_result = align_reconstruction(reconstruction, gcp, config, bias_override=True)
-    if not align_result and config["bundle_compensate_gps_bias"]:
-        overidden_bias_config = config.copy()
-        overidden_bias_config["bundle_compensate_gps_bias"] = False
-        config = overidden_bias_config
-
-    bundle(reconstruction, camera_priors, rig_camera_priors, gcp, config)
-    remove_outliers(reconstruction, config_override)
-    paint_reconstruction(data, tracks_manager, reconstruction)
-    return report, [reconstruction]
-
-
+##########################################
+####### Incremental_Reconstruction ######
+#########################################
+# Add other set-like methods as needed
 def incremental_reconstruction(
     data: DataSetBase, tracks_manager: pymap.TracksManager
 ) -> Tuple[Dict[str, Any], List[types.Reconstruction]]:
     """Run the entire incremental reconstruction pipeline."""
-    logger.info("Starting incremental reconstruction")
+   
+    logger.info("Starting incremental reconstruction ... ")
     report = {}
     chrono = Chronometer()
 
     images = tracks_manager.get_shot_ids()
 
+    images = sorted(images, key=lambda k: int(k.split('_')[2]), reverse=False)
+
     data.init_reference(images)
 
     remaining_images = set(images)
+    remaining_images = sorted(remaining_images, key=lambda k: int(k.split('_')[2]), reverse=False)
+
+    logger.info('**********************************')
+    logger.info(f'Images: {len(images)}')
+    logger.info(f'--> {list(images)[:5]}, {type(images)}')
+    print()
+    logger.info(f'Remaining-Images: {remaining_images}')
+    logger.info(f'--> {remaining_images[:5]}, {type(remaining_images)}')
+    logger.info('**********************************')
+
     gcp = data.load_ground_control_points()
     common_tracks = tracking.all_common_tracks_with_features(tracks_manager)
     reconstructions = []
     pairs = compute_image_pairs(common_tracks, data)
+
+    ft_pairs = set([p[0] for p in pairs])
+    lt_pairs = set([p[1] for p in pairs])
+
+    pprint(f'ft-Pairs: {sorted(list(ft_pairs), key=lambda k: int(k.split("_")[2]), reverse=False)}, len: {len(ft_pairs)}')
+    print()
+    pprint(f'ft-Pairs: {sorted(list(lt_pairs), key=lambda k: int(k.split("_")[2]), reverse=False)}, len: {len(ft_pairs)}')
+    print()
+    print('len-pairs: ', len(pairs))
+    logger.info('**********************************')
+    
+    # exit()
+
     chrono.lap("compute_image_pairs")
     report["num_candidate_image_pairs"] = len(pairs)
     report["reconstructions"] = []
@@ -1613,7 +1598,13 @@ def incremental_reconstruction(
             )
 
             if reconstruction:
-                remaining_images -= set(reconstruction.shots)
+                print('*********** reconstruction.shots *************')
+                print(reconstruction.shots)
+                print('************************')
+                print()
+                shots_set = set(reconstruction.shots)
+                remaining_images = [img for img in remaining_images if img not in shots_set]
+                # remaining_images -= set(reconstruction.shots)
                 reconstruction, rec_report["grow"] = grow_reconstruction(
                     data,
                     tracks_manager,
@@ -1624,16 +1615,26 @@ def incremental_reconstruction(
                 reconstructions.append(reconstruction)
                 reconstructions = sorted(reconstructions, key=lambda x: -len(x.shots))
 
-    for k, r in enumerate(reconstructions):
-        logger.info(
-            "Reconstruction {}: {} images, {} points".format(
-                k, len(r.shots), len(r.points)
-            )
-        )
     logger.info("{} partial reconstructions in total.".format(len(reconstructions)))
     chrono.lap("compute_reconstructions")
     report["wall_times"] = dict(chrono.lap_times())
-    report["not_reconstructed_images"] = list(remaining_images)
+    
+    # print()
+    # print(' ---------- NOT-Recons-Images ----------')
+    # print(list(remaining_images))
+    # print()
+    # print('---------- Report --------------')
+    # print(report)
+    # report["not_reconstructed_images"] = list(remaining_images)
+
+    # print()
+
+    # logger.info("*******************************")
+    # logger.info(f"Reconstruction: {reconstructions}, len: {len(reconstructions)}")
+    # logger.info("*******************************")
+
+    # print()
+
     return report, reconstructions
 
 

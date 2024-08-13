@@ -107,7 +107,6 @@ def create_instances_with_patterns(
                 logger.warning(
                     (
                         f"Rig camera {c} already belongs to the rig camera group {groups_per_camera[c]}."
-                        f"This rig camera is probably part of an incomplete instance : {cameras_group}"
                     )
                 )
         per_complete_instance_id[instance_id] = cameras
@@ -169,13 +168,11 @@ def propose_subset_dataset_from_instances(
             key=len,
             reverse=True,
         )
-        logger.info(f"Found {len(all_components)} connected components")
         if len(all_components) < 1:
             continue
 
         # keep the biggest one
         biggest_component = all_components[0]
-        logger.info(f"Best component has {len(biggest_component)} instances")
         instances_to_pick[key] = biggest_component
 
     random.seed(42)
@@ -266,10 +263,8 @@ def create_rig_cameras_from_reconstruction(
     """Compute rig cameras poses, given a reconstruction and rig instances's shots."""
     rig_cameras: Dict[str, pymap.RigCamera] = {}
     reconstructions_shots = set(reconstruction.shots)
-    logger.info(f"Computing rig cameras pose using {len(reconstructions_shots)} shots")
 
     per_rig_camera_group = group_instances(rig_instances)
-    logger.info(f"Found {len(per_rig_camera_group)} rig cameras groups")
     for instances in sorted(per_rig_camera_group.values(), key=lambda x: -len(x)):
         pose_groups = []
         for instance in instances:
@@ -304,11 +299,6 @@ def create_rigs_with_pattern(data: "DataSet", patterns: TRigPatterns) -> None:
     instances_per_rig, single_shots = create_instances_with_patterns(
         data.images(), patterns
     )
-    for rig_id, instances in instances_per_rig.items():
-        logger.info(
-            f"Found {len(instances)} shots for instance {rig_id} using pattern matching."
-        )
-    logger.info(f"Found {len(single_shots)} single shots using pattern matching.")
 
     # Create some random subset DataSet with enough images from each rig and run SfM
     count = 0
@@ -325,10 +315,6 @@ def create_rigs_with_pattern(data: "DataSet", patterns: TRigPatterns) -> None:
         if len(subset_data.images()) == 0:
             continue
 
-        # Run a bit of SfM without any rig
-        logger.info(
-            f"Running SfM on a subset of {len(subset_data.images())} images. Round {count}/{max_rounds}"
-        )
         actions.extract_metadata.run_dataset(subset_data)
         actions.detect_features.run_dataset(subset_data)
         actions.match_features.run_dataset(subset_data)
@@ -358,16 +344,10 @@ def create_rigs_with_pattern(data: "DataSet", patterns: TRigPatterns) -> None:
         reconstructed_instances = count_reconstructed_instances(
             instances, reconstruction
         )
-        logger.info(
-            f"reconstructed {reconstructed_instances} instances over {len(instances)}"
-        )
         if (
             reconstructed_instances
             < len(instances) * data.config["rig_calibration_completeness"]
         ):
-            logger.error(
-                f"Not enough reconstructed instances: {reconstructed_instances} instances over {len(instances)} instances."
-            )
             continue
 
         best_reconstruction = reconstruction
@@ -375,9 +355,6 @@ def create_rigs_with_pattern(data: "DataSet", patterns: TRigPatterns) -> None:
         break
 
     if best_reconstruction and best_rig_cameras:
-        logger.info(
-            f"Found a candidate for rig calibration with {len(best_reconstruction.shots)} shots"
-        )
         data.save_rig_cameras(best_rig_cameras)
         data.save_rig_assignments(instances_per_rig)
     else:

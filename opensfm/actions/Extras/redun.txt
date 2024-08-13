@@ -1,0 +1,114 @@
+# print('************************************')
+        # print()
+        # print(' ---- MATCHES - cv2 -----')
+        # print(len(matches_cv2))
+        # print()
+        # print(' --- KEY-POINTS - Cv2 ---')
+        # # print(baseImage_kp_cv2, '<----->' ,secImage_kp_cv2)
+        # print() 
+        # print(len(baseImage_kp_cv2), len(secImage_kp_cv2))
+        # print()
+        # print('************************************')
+        # exit()
+        
+
+        ''' Source - Key-Points / Descriptors / [/Matches -- for current frame corresponding matches & /Features for current frame feature points]'''
+        # baseImage_kp, baseImage_des = source_kp(frame_ids[i], src_folder)
+        # secImage_kp, secImage_des = source_kp(frame_ids[i + 1], src_folder)
+
+        # print(' ------------ SAMPLE-POINTS ------------ ')
+        # print(baseImage_kp[0], baseImage_kp.shape)
+        # print()
+        # print(secImage_kp[0], secImage_des.shape)
+        # print()
+        
+        # baseImage_kp = baseImage_kp[:, :2]
+        # secImage_kp = secImage_kp[:, :2] 
+
+        # # baseImage_kp = np.column_stack((baseImage_kp[:, 0] / baseImage_kp[:, -1], baseImage_kp[:, 1] / baseImage_kp[:, -1]))
+        # # secImage_kp = np.column_stack((secImage_kp[:, 0] / secImage_kp[:, -1], secImage_kp[:, 1] / secImage_kp[:, -1])) 
+
+        # print(baseImage_kp.shape, baseImage_des.shape, secImage_kp.shape, secImage_des.shape)
+
+        # # matches = feat.feature_match(baseImage_des, secImage_des)
+        # matches_dict = source_matches(frame_ids[i], src_folder)
+        
+        # # matches_dict = source_matches(frame_ids[i], src_folder)
+        
+        # print()
+        # print('************************************') ## See the /features storing implementation
+        # print()
+        # print(' --- MATCHES --- ')
+        # print(matches_dict)
+
+        # # exit()
+
+        # print('-- IDX --')
+        # matches_idx = matches_dict[frame_ids[i + 1]]
+        # print(matches_idx.shape)
+
+        # # print(len(matches))
+        # # print(matches[0][0].queryIdx, matches[0][0].trainIdx)
+        # # print(matches_dict.keys())
+        # # print([len(i) for i in list(matches_dict.values())])
+        # print()
+        # print(' --- KEY-POINTS ---')
+        # print(baseImage_kp, '<----->' ,secImage_kp)
+        # print() 
+        # print(baseImage_kp, secImage_kp)
+        # print(len(baseImage_kp), len(secImage_kp))
+        # print('************************************')
+        # exit()        
+        # secImage_kp = np.array(matches_dict[frame_ids[i + 1]]) ## <-- obtain secImage_kp
+
+        # homographyMatrix, _ = findHomography_v2(matches_idx, baseImage_kp, secImage_kp, R, t, camera_matrix)
+        # homographyMatrix, _ = findHomography_v2(matches, baseImage_kp, secImage_kp, R, t, camera_matrix)
+        
+        def run_simple(src_folder):
+
+    resized_frames, frame_ids, K, k1, k2, shot_params = get_data(src_folder)
+
+    ref_frame = resized_frames[0]
+    R, ref_t = np.array(shot_params[frame_ids[0]]['R']).reshape(3, 1), np.array(shot_params[frame_ids[0]]['T']).reshape(3, 1)
+    ref_R, _ = cv.Rodrigues(R)
+
+    # Initialize panorama
+    panorama = ref_frame
+
+    for i in range(1, len(resized_frames)):
+        # Calculate relative R and t
+        
+        Rs, ts = np.array(shot_params[frame_ids[i]]['R']).reshape(3, 1), np.array(shot_params[frame_ids[i]]['T']).reshape(3, 1)
+        Rs, _ = cv.Rodrigues(R)
+        
+        R_relative = Rs @ ref_R.T
+        t_relative = ts - R_relative @ ref_t
+
+        # Calculate homography
+        H = K @ (R_relative + t_relative @ np.array([[0, 0, 1]])) @ np.linalg.inv(K)
+
+        print('**************************')
+        print(' ---- Homography-Simple ---- ')
+        print(H)
+        print('**************************')
+
+        # Warp current frame
+        warped_frame = cv2.warpPerspective(resized_frames[i], H, (panorama.shape[1]*2, panorama.shape[0]*2))        
+
+        # Blend warped frame with panorama (simple overlay for demonstration)
+        
+        # fig = plt.figure(figsize = (7, 7))
+        # plt.imshow(warped_frame)
+        # plt.show()
+        
+        panorama = warped_frame   
+
+    # Crop black borders (simplified)
+    gray = cv2.cvtColor(panorama, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    print(contours)
+    x, y, w, h = cv2.boundingRect(contours[0])
+    panorama = panorama[y:y+h, x:x+w]
+
+    return panorama

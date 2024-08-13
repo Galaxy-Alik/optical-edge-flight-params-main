@@ -12,6 +12,9 @@ class Command(command.CommandBase):
     help = "Compute the reconstruction"
 
     def run_impl(self, dataset: DataSet, args: argparse.Namespace) -> None:
+        print('-------- Reconstruct -- (Commands) --------')
+        print('Image-Len: ', len(dataset.images()))
+        print('-----------------')
         reconstruct.run_dataset(dataset, args.algorithm)
 
     def add_arguments_impl(self, parser: argparse.ArgumentParser) -> None:

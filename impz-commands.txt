@@ -1,0 +1,55 @@
+$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri https://aka.ms/installazurecliwindowsx64 -OutFile .\AzureCLI.msi; Start-Process msiexec.exe -Wait -ArgumentList '/I AzureCLI.msi /quiet'; Remove-Item .\AzureCLI.msi
+
+AZURE Local-Directory Download -> 
+
+az storage blob directory download -c dronev2 --account-name galaxeye -s "Thaiyur_Project" -d "Data" --recursive
+
+az storage blob directory download -c dronev2 --account-name galaxeye -s "Thaiyur_Project/DXS100/ePlane_10_04_2024/E240/cam/strip_E240_1679940007" -d "Data" --recursive
+
+az storage blob upload-batch --source media/datademon/GLX_DATA_HD/SAR-Stripes --destination dronev2/Thaiyur_Project/Drone-Processed-Data/SAR --account-name galaxeye --auth-mode login
+
+az storage blob upload-batch --source /home/datademon/Desktop/SAR-Stripes --destination dronev2/Thaiyur_Project/Drone-Processed-Data/SAR --account-name galaxeye --auth-mode login
+
+----------------------------------------------------------------------------
+
+Opensfm ->
+
+build docker container first:
+
+docker build -t any-image-name .
+
+docker run -it any-image-name
+
+python3 setup.py build
+
+bin/opensfm_run_all data/berlin (EG)
+
+exit
+
+#########################################
+### Docker-Image --> alik-sfm-docker-3###
+#########################################
+
+python3 viewer/server.py -d data/berlin (EG)
+
+docker run -it -v /path/to/local/folder:/path/inside/container mapillary/opensfm /bin/sh -c "bin/run_all data/berlin"
+
+docker run -it -v /home/datademon/Desktop/Alik/OpenSfM/data:/data alik-sfm-docker /bin/sh -c "bin/opensfm_run_all /data/berlin"
+
+### Need to Change to change the docker-image to reflect changes in build space --- 
+Might need to make changes in the codebase --> create docker-image --> then build the workspace (with those reflected in it) --> <-- Might Solve the Import problem 
+
+docker run -it -v /home/datademon/Desktop/Alik/galax_spip_v2/data:/data alik-sfm-docker /bin/sh -c "bin/opensfm_run_all /data/berlin"
+
+docker run -it -v /home/datademon/Desktop/Alik/galax_spip_v2/data:/data alik-sfm-docker-3 /bin/sh -c "bin/opensfm_run_all /data/thaiyur-E333-20"
+
+### To map updates from Docker-Image to Local
+docker run --rm -v /home/datademon/Desktop/Alik/galax_spip_v2/data:/data alik-sfm-docker-3 /bin/sh -c "cat opensfm/actions/save_euler.py" > save_euler.py
+ 
+----------------------------------------------------------------------------
+
+Enigma Optical Processing Pipeline ->
+
+python3 runner.py --dirpath /home/datademon/Desktop/Alik/Data-New/E318 --skipcnt 6 --useins flag --payload_version "Concept1"
+
+sudo docker run -it --rm -v  /home/datademon/Desktop/Alik/Data-New:/Data-New opendronemap/odm --orthophoto-resolution 0.2 --fast-orthophoto --orthophoto-cutline --project-path /Data-New project --force-gps --dtm --dsm

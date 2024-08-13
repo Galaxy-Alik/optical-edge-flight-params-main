@@ -4,7 +4,7 @@ import math
 from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
-from opensfm import exif as oexif, geometry, multiview, pygeometry, pymap, rig, types
+from opensfm import exif as oexif, geometry, multiview, pygeometry, rig, pymap, types
 from opensfm.dataset_base import DataSetBase
 
 
@@ -47,9 +47,6 @@ def shot_gravity_up_in_image_axis(shot: pymap.Shot) -> Optional[np.ndarray]:
 
     orientation = shot.metadata.orientation.value
     if not 1 <= orientation <= 8:
-        logger.error(
-            "Unknown orientation tag {} for image {}".format(orientation, shot.id)
-        )
         orientation = 1
     return guess_gravity_up_from_orientation_tag(orientation)
 

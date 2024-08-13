@@ -8,7 +8,7 @@ from timeit import default_timer as timer
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from opensfm import bow, features, io, log, masking, pygeometry, upright
+from opensfm import features, io, log, masking, pygeometry, upright
 from opensfm.context import parallel_map
 from opensfm.dataset_base import DataSetBase
 
@@ -27,9 +27,6 @@ def run_features_processing(data: DataSetBase, images: List[str], force: bool) -
         # Use 90% of available memory
         ratio_use = 0.9
         mem_available *= ratio_use
-        logger.info(
-            f"Planning to use {mem_available} MB of RAM for both processing queue and parallel processing."
-        )
 
         # 50% for the queue / 50% for parallel processing
         expected_mb = mem_available / 2
@@ -37,15 +34,10 @@ def run_features_processing(data: DataSetBase, images: List[str], force: bool) -
             max_queue_size, int(expected_mb / average_image_size(data))
         )
         processing_size = average_processing_size(data)
-        logger.info(
-            f"Scale-space expected size of a single image : {processing_size} MB"
-        )
+
         processes = min(max(1, int(expected_mb / processing_size)), processes)
     else:
         expected_images = default_queue_size
-    logger.info(
-        f"Expecting to queue at most {expected_images} images while parallel processing of {processes} images."
-    )
 
     process_queue = queue.Queue(expected_images)
     arguments: List[Tuple[str, Any]] = []
@@ -160,7 +152,6 @@ def read_images(
 ) -> None:
     full_queue_timeout = 600
     for image in images:
-        logger.info(f"Reading data for image {image} (queue-size={queue.qsize()})")
         image_array = data.load_image(image)
         if data.config["features_bake_segmentation"]:
             segmentation_array = data.load_segmentation(image)
@@ -171,7 +162,7 @@ def read_images(
         queue.put(args, block=True, timeout=full_queue_timeout)
         counter.increment()
         if counter.value() == expected:
-            logger.info("Finished reading images")
+            # logger.info("Finished reading images")
             queue.put(None)
 
 
@@ -203,7 +194,7 @@ def bake_segmentation(
     height, width = image.shape[:2]
     if exif_height != height or exif_width != width:
         logger.error(
-            f"Image has inconsistent EXIF dimensions ({exif_width}, {exif_height}) and image dimensions ({width}, {height}). Orientation={exif_orientation}"
+            f"Image has inconsistent EXIF dimensions"
         )
 
     panoptic_data = [None, None]
@@ -233,47 +224,17 @@ def detect(
 ) -> None:
     log.setup()
 
-    need_words = (
-        data.config["matcher_type"] == "WORDS"
-        or data.config["matching_bow_neighbors"] > 0
-    )
-    has_words = not need_words or data.words_exist(image)
-    has_features = data.features_exist(image)
-
-    if not force and has_features and has_words:
-        logger.info(
-            "Skip recomputing {} features for image {}".format(
-                data.feature_type().upper(), image
-            )
-        )
-        return
-
-    logger.info(
-        "Extracting {} features for image {}".format(data.feature_type().upper(), image)
-    )
-
     start = timer()
 
     p_unmasked, f_unmasked, c_unmasked = features.extract_features(
         image_array, data.config, is_high_res_panorama(data, image, image_array)
     )
 
-    # Load segmentation and bake it in the data
-    if data.config["features_bake_segmentation"]:
-        exif = data.load_exif(image)
-        s_unsorted, i_unsorted = bake_segmentation(
-            image_array, p_unmasked, segmentation_array, instances_array, exif
-        )
-        p_unsorted = p_unmasked
-        f_unsorted = f_unmasked
-        c_unsorted = c_unmasked
-    # Load segmentation, make a mask from it mask and apply it
-    else:
-        s_unsorted, i_unsorted = None, None
-        fmask = masking.load_features_mask(data, image, p_unmasked)
-        p_unsorted = p_unmasked[fmask]
-        f_unsorted = f_unmasked[fmask]
-        c_unsorted = c_unmasked[fmask]
+    s_unsorted, i_unsorted = None, None
+    fmask = masking.load_features_mask(data, image, p_unmasked)
+    p_unsorted = p_unmasked[fmask]
+    f_unsorted = f_unmasked[fmask]
+    c_unsorted = c_unmasked[fmask]
 
     if len(p_unsorted) == 0:
         logger.warning("No features found in image {}".format(image))
@@ -293,14 +254,6 @@ def detect(
         semantic_data = None
     features_data = features.FeaturesData(p_sorted, f_sorted, c_sorted, semantic_data)
     data.save_features(image, features_data)
-
-    if need_words:
-        bows = bow.load_bows(data.config)
-        n_closest = data.config["bow_words_to_match"]
-        closest_words = bows.map_to_words(
-            f_sorted, n_closest, data.config["bow_matcher_type"]
-        )
-        data.save_words(image, closest_words)
 
     end = timer()
     report = {

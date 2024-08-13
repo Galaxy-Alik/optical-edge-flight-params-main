@@ -10,6 +10,7 @@ from typing import Generator
 from opensfm import commands
 from opensfm.dataset import DataSet
 
+print(' --- Running - Main --- ')
 
 @contextlib.contextmanager
 def create_default_dataset_context(

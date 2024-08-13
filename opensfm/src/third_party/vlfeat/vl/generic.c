@@ -1015,7 +1015,7 @@ VL_INLINE VlThreadState *
 vl_get_thread_specific_state (void)
 {
 #ifdef VL_DISABLE_THREADS
-  return vl_get_state()->threadState ;
+  return vl_get_state()->threadState;
 #else
   VlState * state ;
   VlThreadState * threadState ;
@@ -1369,7 +1369,7 @@ vl_free (void *ptr)
 void
 vl_set_printf_func (printf_func_t printf_func)
 {
-  vl_get_state()->printf_func = printf_func ? printf_func : do_nothing_printf ;
+  vl_get_state()->printf_func = printf_func ? printf_func : do_nothing_printf;
 }
 
 /** @brief Get the printf function
@@ -1625,12 +1625,12 @@ vl_destructor ()
     VlThreadState * threadState =
        TlsGetValue(state->tlsIndex) ;
     if (threadState) {
-      vl_thread_specific_state_delete (threadState) ;
-      TlsSetValue(state->tlsIndex, NULL) ;
+      vl_thread_specific_state_delete (threadState);
+      TlsSetValue(state->tlsIndex, NULL);
     }
   }
   TlsFree (state->tlsIndex) ;
-  DeleteCriticalSection (&state->mutex) ;
+  DeleteCriticalSection (&state->mutex);
 #endif
 #else
 #if defined(DEBUG)

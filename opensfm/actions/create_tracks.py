@@ -4,10 +4,14 @@ from timeit import default_timer as timer
 from opensfm import io
 from opensfm import tracking
 from opensfm.dataset_base import DataSetBase
+import logging
 
+logger: logging.Logger = logging.getLogger(__name__)
 
 def run_dataset(data: DataSetBase) -> None:
     """Link matches pair-wise matches into tracks."""
+
+    logger.info(' --- Running - Create - Tracks ---')
 
     start = timer()
     features, colors, segmentations, instances = tracking.load_features(

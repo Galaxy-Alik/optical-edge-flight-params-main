@@ -1,0 +1,32 @@
+## Order of File Execution
+
+Extract_Metadata
+Detect_Features
+Match_Features
+Create_Rig
+Create_Tracks
+Compute_Statistics 
+Reconstruct
+Bundle
+Export_Colmap
+Export_Geocoords
+Export_Ply
+Export_Bundler
+Extend_Reconstruction
+Create_Submodels
+Align_Submodels
+
+## Chronology -->
+
+---------- OpenSfM - Main ---------- 
+<module 'opensfm.commands.extract_metadata' from '/source/OpenSfM/opensfm/commands/extract_metadata.py'>, 
+<module 'opensfm.commands.detect_features' from '/source/OpenSfM/opensfm/commands/detect_features.py'>, 
+<module 'opensfm.commands.match_features' from '/source/OpenSfM/opensfm/commands/match_features.py'>, 
+<module 'opensfm.commands.create_tracks' from '/source/OpenSfM/opensfm/commands/create_tracks.py'>, 
+<module 'opensfm.commands.reconstruct' from '/source/OpenSfM/opensfm/commands/reconstruct.py'>, 
+<module 'opensfm.commands.bundle' from '/source/OpenSfM/opensfm/commands/bundle.py'>, 
+<module 'opensfm.commands.export_bundler' from '/source/OpenSfM/opensfm/commands/export_bundler.py'>, 
+<module 'opensfm.commands.extend_reconstruction' from '/source/OpenSfM/opensfm/commands/extend_reconstruction.py'>, 
+<module 'opensfm.commands.create_submodels' from '/source/OpenSfM/opensfm/commands/create_submodels.py'>, 
+<module 'opensfm.commands.align_submodels' from '/source/OpenSfM/opensfm/commands/align_submodels.py'>, 
+<module 'opensfm.commands.stitch_v2' from '/source/OpenSfM/opensfm/commands/stitch_v2.py'>

@@ -72,22 +72,11 @@ def match_images_with_pairs(
 
     # Perform all pair matchings in parallel
     start = timer()
-    logger.info("Matching {} image pairs".format(len(pairs)))
     processes = config_override.get("processes", data.config["processes"])
     mem_per_process = 512
     jobs_per_process = 2
     processes = context.processes_that_fit_in_memory(processes, mem_per_process)
-    logger.info("Computing pair matching with %d processes" % processes)
     matches = context.parallel_map(match_unwrap_args, args, processes, jobs_per_process)
-    logger.info(
-        "Matched {} pairs {} in {} seconds ({} seconds/pair).".format(
-            len(pairs),
-            log_projection_types(pairs, exifs, cameras),
-            timer() - start,
-            (timer() - start) / len(pairs) if pairs else 0,
-        )
-    )
-
     # Index results per pair
     resulting_pairs = {}
     for im1, im2, m in matches:
@@ -240,17 +229,6 @@ def match_descriptors(
         matches_unfiltered = unfilter_matches(matches, m1, m2)
 
     symmetric = "symmetric" if overriden_config["symmetric_matching"] else "one-way"
-    logger.debug(
-        "Matching {} and {}.  Matcher: {} ({}) "
-        "T-desc: {:1.3f} Matches: {}".format(
-            im1,
-            im2,
-            matcher_type,
-            symmetric,
-            time_2d_matching,
-            len(matches_unfiltered),
-        )
-    )
     return np.array(matches_unfiltered, dtype=int)
 
 
@@ -371,65 +349,8 @@ def _match_descriptors_impl(
         return dummy_ret
 
     symmetric_matching = overriden_config["symmetric_matching"]
-    if matcher_type == "WORDS":
-        words1 = feature_loader.instance.load_words(data, im1, masked=True)
-        words2 = feature_loader.instance.load_words(data, im2, masked=True)
-        if words1 is None or words2 is None:
-            return dummy_ret
 
-        if symmetric_matching:
-            matches = match_words_symmetric(
-                d1,
-                words1,
-                d2,
-                words2,
-                overriden_config,
-            )
-        else:
-            matches = match_words(
-                d1,
-                words1,
-                d2,
-                words2,
-                overriden_config,
-            )
-
-    elif matcher_type == "FLANN":
-        f1 = feature_loader.instance.load_features_index(
-            data,
-            im1,
-            masked=True,
-            segmentation_in_descriptor=segmentation_in_descriptor,
-        )
-        if not f1:
-            return dummy_ret
-        feat_data_index1, index1 = f1
-        if symmetric_matching:
-            f2 = feature_loader.instance.load_features_index(
-                data,
-                im2,
-                masked=True,
-                segmentation_in_descriptor=segmentation_in_descriptor,
-            )
-            if not f2:
-                return dummy_ret
-            feat_data_index2, index2 = f2
-
-            descriptors1 = feat_data_index1.descriptors
-            descriptors2 = feat_data_index2.descriptors
-            if descriptors1 is None or descriptors2 is None:
-                return dummy_ret
-
-            matches = match_flann_symmetric(
-                descriptors1,
-                index1,
-                descriptors2,
-                index2,
-                overriden_config,
-            )
-        else:
-            matches = match_flann(index1, d2, overriden_config)
-    elif matcher_type == "BRUTEFORCE":
+    if matcher_type == "BRUTEFORCE":
         if symmetric_matching:
             matches = match_brute_force_symmetric(d1, d2, overriden_config)
         else:
@@ -522,17 +443,6 @@ def match_robust(
         rmatches_unfiltered = rmatches
 
     robust_matching_min_match = overriden_config["robust_matching_min_match"]
-    logger.debug(
-        "Matching {} and {}. T-robust: {:1.3f} "
-        "Matches: {} Robust: {} Success: {}".format(
-            im1,
-            im2,
-            time_robust_matching,
-            len(matches),
-            len(rmatches_unfiltered),
-            len(rmatches_unfiltered) >= robust_matching_min_match,
-        )
-    )
 
     if len(rmatches_unfiltered) < robust_matching_min_match:
         return np.array([])
@@ -586,12 +496,7 @@ def match(
     symmetric = "symmetric" if overriden_config["symmetric_matching"] else "one-way"
     robust_matching_min_match = overriden_config["robust_matching_min_match"]
     if len(matches) < robust_matching_min_match:
-        logger.debug(
-            "Matching {} and {}.  Matcher: {} ({}) T-desc: {:1.3f} "
-            "Matches: FAILED".format(
-                im1, im2, matcher_type, symmetric, time_2d_matching
-            )
-        )
+        logger.debug("Matches: FAILED")
         return np.array([])
 
     # Run robust matching (non guided case only)
@@ -607,25 +512,7 @@ def match(
     if m1 is not None and m2 is not None:
         rmatches = unfilter_matches(rmatches, m1, m2)
 
-    time_total = timer() - time_start
-
-    logger.debug(
-        "Matching {} and {}.  Matcher: {} ({}) "
-        "T-desc: {:1.3f} T-robust: {:1.3f} T-total: {:1.3f} "
-        "Matches: {} Robust: {} Success: {}".format(
-            im1,
-            im2,
-            matcher_type,
-            symmetric,
-            time_2d_matching,
-            time_robust_matching,
-            time_total,
-            len(matches),
-            len(rmatches),
-            len(rmatches) >= robust_matching_min_match,
-        )
-    )
-
+    
     if len(rmatches) < robust_matching_min_match:
         return np.array([])
     return np.array(rmatches, dtype=int)
@@ -674,43 +561,6 @@ def match_words_symmetric(
     matches_ji = [(b, a) for a, b in matches_ji]
 
     return list(set(matches_ij).intersection(set(matches_ji)))
-
-
-def match_flann(
-    index: Any, f2: np.ndarray, config: Dict[str, Any]
-) -> List[Tuple[int, int]]:
-    """Match using FLANN and apply Lowe's ratio filter.
-
-    Args:
-        index: flann index if the first image
-        f2: feature descriptors of the second image
-        config: config parameters
-    """
-    search_params = dict(checks=config["flann_checks"])
-    results, dists = index.knnSearch(f2, 2, params=search_params)
-    squared_ratio = config["lowes_ratio"] ** 2  # Flann returns squared L2 distances
-    good = dists[:, 0] < squared_ratio * dists[:, 1]
-    return list(zip(results[good, 0], good.nonzero()[0]))
-
-
-def match_flann_symmetric(
-    fi: np.ndarray, indexi: Any, fj: np.ndarray, indexj: Any, config: Dict[str, Any]
-) -> List[Tuple[int, int]]:
-    """Match using FLANN in both directions and keep consistent matches.
-
-    Args:
-        fi: feature descriptors of the first image
-        indexi: flann index if the first image
-        fj: feature descriptors of the second image
-        indexj: flann index of the second image
-        config: config parameters
-        maskij: optional boolean mask of len(i descriptors) x len(j descriptors)
-    """
-    matches_ij = [(a, b) for a, b in match_flann(indexi, fj, config)]
-    matches_ji = [(b, a) for a, b in match_flann(indexj, fi, config)]
-
-    return list(set(matches_ij).intersection(set(matches_ji)))
-
 
 def match_brute_force(
     f1: np.ndarray,
@@ -944,9 +794,6 @@ def apply_adhoc_filters(
 
     """
     matches = _non_static_matches(p1, p2, matches)
-    matches = _not_on_pano_poles_matches(p1, p2, matches, camera1, camera2)
-    matches = _not_on_vermont_watermark(p1, p2, matches, im1, im2, data)
-    matches = _not_on_blackvue_watermark(p1, p2, matches, im1, im2, data)
     return matches
 
 
@@ -971,87 +818,3 @@ def _non_static_matches(
         return matches
     else:
         return res
-
-
-def _not_on_pano_poles_matches(
-    p1: np.ndarray,
-    p2: np.ndarray,
-    matches: List[Tuple[int, int]],
-    camera1: pygeometry.Camera,
-    camera2: pygeometry.Camera,
-) -> List[Tuple[int, int]]:
-    """Remove matches for features that are too high or to low on a pano.
-
-    That should remove matches on the sky and and carhood part of panoramas
-    """
-    min_lat = -0.125
-    max_lat = 0.125
-    is_pano1 = pygeometry.Camera.is_panorama(camera1.projection_type)
-    is_pano2 = pygeometry.Camera.is_panorama(camera2.projection_type)
-    if is_pano1 or is_pano2:
-        res = []
-        for match in matches:
-            if (not is_pano1 or min_lat < p1[match[0]][1] < max_lat) and (
-                not is_pano2 or min_lat < p2[match[1]][1] < max_lat
-            ):
-                res.append(match)
-        return res
-    else:
-        return matches
-
-
-def _not_on_vermont_watermark(
-    p1: np.ndarray,
-    p2: np.ndarray,
-    matches: List[Tuple[int, int]],
-    im1: str,
-    im2: str,
-    data: DataSetBase,
-) -> List[Tuple[int, int]]:
-    """Filter Vermont images watermark."""
-    meta1 = data.load_exif(im1)
-    meta2 = data.load_exif(im2)
-
-    if meta1["make"] == "VTrans_Camera" and meta1["model"] == "VTrans_Camera":
-        matches = [m for m in matches if _vermont_valid_mask(p1[m[0]])]
-    if meta2["make"] == "VTrans_Camera" and meta2["model"] == "VTrans_Camera":
-        matches = [m for m in matches if _vermont_valid_mask(p2[m[1]])]
-    return matches
-
-
-def _vermont_valid_mask(p: np.ndarray) -> bool:
-    """Check if pixel inside the valid region.
-
-    Pixel coord Y should be larger than 50.
-    In normalized coordinates y > (50 - h / 2) / w
-    """
-    return p[1] > -0.255
-
-
-def _not_on_blackvue_watermark(
-    p1: np.ndarray,
-    p2: np.ndarray,
-    matches: List[Tuple[int, int]],
-    im1: str,
-    im2: str,
-    data: DataSetBase,
-) -> List[Tuple[int, int]]:
-    """Filter Blackvue's watermark."""
-    meta1 = data.load_exif(im1)
-    meta2 = data.load_exif(im2)
-
-    if meta1["make"].lower() == "blackvue":
-        matches = [m for m in matches if _blackvue_valid_mask(p1[m[0]])]
-    if meta2["make"].lower() == "blackvue":
-        matches = [m for m in matches if _blackvue_valid_mask(p2[m[1]])]
-    return matches
-
-
-def _blackvue_valid_mask(p: np.ndarray) -> bool:
-    """Check if pixel inside the valid region.
-
-    Pixel coord Y should be smaller than h - 70.
-    In normalized coordinates y < (h - 70 - h / 2) / w,
-    with h = 2160 and w = 3840
-    """
-    return p[1] < 0.263

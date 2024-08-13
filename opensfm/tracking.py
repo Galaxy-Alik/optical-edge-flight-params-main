@@ -83,7 +83,6 @@ def create_tracks_manager(
             sets[p] = [i]
 
     tracks = [t for t in sets.values() if _good_track(t, min_length)]
-    logger.debug("Good tracks: {}".format(len(tracks)))
 
     NO_VALUE = pymap.Observation.NO_SEMANTIC_VALUE
     tracks_manager = pymap.TracksManager()
